@@ -1,0 +1,18 @@
+{
+  "name": "qt_cur_indexer",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "aws-sdk": "^2.205.0",
+    "csvtojson": "^1.1.9",
+    "elasticsearch": "^14.2.2",
+    "highland": "^2.13.0",
+    "ramda": "^0.25.0"
+  }
+}
