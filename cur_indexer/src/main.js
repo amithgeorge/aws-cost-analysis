@@ -5,7 +5,9 @@ var config = require("./config"),
   elasticsearch = require("elasticsearch"),
   esIndexer = require("./es/indexer"),
   fs = require("fs"),
+  hl = require("highland"),
   path = require("path"),
+  pipeline = require("./pipeline"),
   stream = require("stream"),
   athenaCreateQuery = require("./athena/queries/create_table");
 
@@ -41,6 +43,30 @@ function makeIndexer() {
   return esIndexer.makeIndexer(client);
 }
 
+function delayFor2Seconds() {
+  return new Promise((resolve, reject) => {
+    setTimeout(function() {
+      resolve(true);
+    }, 2000);
+  });
+}
+
+function fakeBatchConsumer() {
+  return createConsumer(delayFor2Seconds);
+}
+
+function createConsumer(consumeFn) {
+  return function(items, { batchNum }) {
+    console.log(new Date().toISOString() + ": consuming batch no: " + batchNum);
+    return consumeFn(items).then(() => {
+      console.log(
+        new Date().toISOString() + ": processed batch no: " + batchNum
+      );
+    });
+  };
+}
+
+
 function doSomething() {
   let manifest = curManifest.getManifest({
     filePath: path.resolve("./data_files/QT-ICE-Manifest.json")
@@ -49,21 +75,21 @@ function doSomething() {
 
   let index = "my_temp_index";
   let indexer = makeIndexer();
+  let batchSize = 1000;
+  let concurrency = 3;
 
   indexer
     .recreateIndex({ index: index, options: { numShards: 1, numReplicas: 0 } })
     .then(() => {
-      curDataFiles
-        .getDataStream({ manifest: manifest })
-        .batch(100)
-        .map(items =>
-          console.log(
-            new Date().toISOString() + ": processing " + items.length + " items"
-          )
-        )
-        .done(() => {
-          console.log("done indexing");
-        });
+      let dataStream = curDataFiles.getDataStream({ manifest: manifest });
+      pipeline.start(
+        {
+          batchSize: batchSize,
+          concurrency: concurrency,
+          consumeBatchAsync: fakeBatchConsumer()
+        },
+        dataStream
+      );
     });
 }
 
