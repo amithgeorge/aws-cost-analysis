@@ -51,10 +51,6 @@ function delayFor2Seconds() {
   });
 }
 
-function fakeBatchConsumer() {
-  return createConsumer(delayFor2Seconds);
-}
-
 function createConsumer(consumeFn) {
   return function(items, { batchNum }) {
     console.log(new Date().toISOString() + ": consuming batch no: " + batchNum);
@@ -66,17 +62,36 @@ function createConsumer(consumeFn) {
   };
 }
 
+function fakeBatchConsumer() {
+  return createConsumer(delayFor2Seconds);
+}
 
-function doSomething() {
+function esIndexingBatchConsumer(indexer, { index }) {
+  return createConsumer(items => {
+    return indexer.bulkIndex({ index: index, data: items });
+  });
+}
+
+function getManifest() {
   let manifest = curManifest.getManifest({
     filePath: path.resolve("./data_files/QT-ICE-Manifest.json")
   });
-  manifest.files = [path.resolve("./data_files/QT-ICE-1.csv.gz")];
+  manifest.files = [
+    path.resolve("./data_files/QT-ICE-1.csv.gz"),
+    path.resolve("./data_files/QT-ICE-2.csv.gz")
+  ];
+  return manifest;
+}
 
-  let index = "my_temp_index";
+
+
+
+function doSomething() {
+  let manifest = getManifest();
+  let index = "cur_201802";
   let indexer = makeIndexer();
   let batchSize = 1000;
-  let concurrency = 3;
+  let concurrency = 5;
 
   indexer
     .recreateIndex({ index: index, options: { numShards: 1, numReplicas: 0 } })

@@ -17,17 +17,20 @@ function bulkIndex(client, { index, data }) {
 }
 
 function recreateIndex(client, { index, options: { numShards, numReplicas } }) {
-  return client.indices.delete({ index: index }).then(() => {
-    return client.indices.create({
-      index: index,
-      body: {
-        settings: {
-          number_of_shards: numShards || 1,
-          number_of_replicas: numReplicas || 0
+  return client.indices
+    .delete({ index: index })
+    .catch(err => console.log(err))
+    .then(() => {
+      return client.indices.create({
+        index: index,
+        body: {
+          settings: {
+            number_of_shards: numShards || 1,
+            number_of_replicas: numReplicas || 0
+          }
         }
-      }
+      });
     });
-  });
 }
 
 function makeIndexer(client) {
