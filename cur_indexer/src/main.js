@@ -1,15 +1,18 @@
-var fs = require("fs"),
+var config = require("./config"),
+  curDataFiles = require("./cur/data_files"),
+  curManifest = require("./cur/manifest"),
+  csvToJson = require("csvtojson"),
+  elasticsearch = require("elasticsearch"),
+  esIndexer = require("./es/indexer"),
+  fs = require("fs"),
   path = require("path"),
   stream = require("stream"),
-  csvToJson = require("csvtojson"),
-  through2Batch = require("through2-batch"),
-  curManifest = require("./cur/manifest"),
-  curDataFiles = require("./cur/data_files"),
-  athenaCreateQuery = require("./athena/queries/create_table"),
-  qualifiedTableName = "aws_costs.cost_usage_reports",
-  location = "s3://qt-awscostice/qt/hdfs/cur/";
+  athenaCreateQuery = require("./athena/queries/create_table");
 
 // var manifestPath = "s3://qt-awscostice/qt/QT-ICE/20180301-20180401/QT-ICE-Manifest.json"
+
+let qualifiedTableName = "aws_costs.cost_usage_reports",
+  location = "s3://qt-awscostice/qt/hdfs/cur/";
 
 function getDataFileStream(options) {
   return fs.createReadStream("../data_files/QT-ICE-1.csv");
@@ -24,15 +27,44 @@ function sendToESTransform() {
   });
 }
 
+function makeESClient() {
+  let client = new elasticsearch.Client({
+    host: config.getValue("ES_URL"),
+    apiVersion: "6.2"
+  });
+
+  return client;
+}
+
+function makeIndexer() {
+  let client = makeESClient();
+  return esIndexer.makeIndexer(client);
+}
+
 function doSomething() {
-  var manifest = curManifest.getManifest({
+  let manifest = curManifest.getManifest({
     filePath: path.resolve("./data_files/QT-ICE-Manifest.json")
   });
   manifest.files = [path.resolve("./data_files/QT-ICE-1.csv.gz")];
-  var dataStream = curDataFiles.getDataStream({ manifest: manifest });
-  dataStream.batch(100).each(function(data) {
-    console.log(data);
-  });
+
+  let index = "my_temp_index";
+  let indexer = makeIndexer();
+
+  indexer
+    .recreateIndex({ index: index, options: { numShards: 1, numReplicas: 0 } })
+    .then(() => {
+      curDataFiles
+        .getDataStream({ manifest: manifest })
+        .batch(100)
+        .map(items =>
+          console.log(
+            new Date().toISOString() + ": processing " + items.length + " items"
+          )
+        )
+        .done(() => {
+          console.log("done indexing");
+        });
+    });
 }
 
 doSomething();

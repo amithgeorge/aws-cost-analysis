@@ -1,17 +1,42 @@
-let elasticsearch = require("elasticsearch"),
-  config = require("../config"),
-  _ = require('lodash');
+let R = require("ramda");
 
-let client = new elasticsearch.Client({
-  host: config.getValue("ES_URL"),
-  apiVersion: "6.2"
-});
+function itemToBulkBodyItems(item) {
+  return [{ index: {} }, item];
+}
 
-function bulkIndex({ index, data }) {
-  let body = 
+function bulkIndex(client, { index, data }) {
+  let body = R.chain(itemToBulkBodyItems)(data);
 
   let params = {
-    refresh: "true",
-    index: index
+    index: index,
+    type: "lineitem",
+    body: body
+  };
+
+  return client.bulk(params);
+}
+
+function recreateIndex(client, { index, options: { numShards, numReplicas } }) {
+  return client.indices.delete({ index: index }).then(() => {
+    return client.indices.create({
+      index: index,
+      body: {
+        settings: {
+          number_of_shards: numShards || 1,
+          number_of_replicas: numReplicas || 0
+        }
+      }
+    });
+  });
+}
+
+function makeIndexer(client) {
+  return {
+    bulkIndex: R.partial(bulkIndex, [client]),
+    recreateIndex: R.partial(recreateIndex, [client])
   };
 }
+
+module.exports = {
+  makeIndexer
+};
