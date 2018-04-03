@@ -77,7 +77,7 @@ function manifestName(reportName) {
   return `${reportName}-Manifest.json`;
 }
 
-function readManifestFromLocal({ filePath }) {
+function readLocalManifest({ filePath }) {
   let manifest = getManifestFromLocalFile(filePath);
   return sanitizeManifest(manifest);
 }
@@ -93,7 +93,7 @@ function getManifestLocalPath({ reportName, year, month }) {
 }
 
 module.exports = {
-  readManifestFromLocal,
+  readLocalManifest,
   getManifestS3Key,
   getManifestLocalPath
 };

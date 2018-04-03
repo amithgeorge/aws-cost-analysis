@@ -1,0 +1,115 @@
+// const config = require("./config"),
+//   curDate = require("./cur/date"),
+//   curManifest = require("./cur/manifest"),
+//   mkdirp = require("mkdirp"),
+//   path = require("path");
+
+var AWS = require("aws-sdk"),
+  config = require("./config"),
+  curDataFiles = require("./cur/dataFiles"),
+  curDate = require("./cur/date"),
+  curManifest = require("./cur/manifest"),
+  csvToJson = require("csvtojson"),
+  elasticsearch = require("elasticsearch"),
+  esIndexer = require("./es/indexer"),
+  fs = require("fs"),
+  hl = require("highland"),
+  mkdirp = require("mkdirp"),
+  path = require("path"),
+  pipeline = require("./pipeline"),
+  { S3Downloader } = require("./s3/downloader"),
+  stream = require("stream"),
+  athenaCreateQuery = require("./athena/queries/create_table");
+
+function makeS3Client() {
+  return new AWS.S3({
+    apiVersion: "2006-03-01",
+    region: "us-east-1"
+  });
+}
+
+function ensureDataFilesDir({ year, month }) {
+  let localPrefix = curDate.getLocalFilePrefix(year, month);
+  return new Promise((resolve, reject) => {
+    let localPath = path.resolve(`./data_files/${localPrefix}`);
+    mkdirp(localPath, err => {
+      if (err) {
+        let errorMessage = `Failed to create ${localPath}`;
+        console.error(errorMessage);
+        reject({ errorMessage, error: err });
+        return;
+      }
+
+      resolve(null, localPath);
+    });
+  });
+}
+
+function downloadManifest({ s3Bucket, prefix, reportName, year, month }) {
+  // sample manifestPath "s3://qt-awscostice/qt/QT-ICE/20180301-20180401/QT-ICE-Manifest.json"
+
+  let s3Key = curManifest.getManifestS3Key({
+    s3Bucket,
+    prefix,
+    reportName,
+    year,
+    month
+  });
+
+  let localPath = curManifest.getManifestLocalPath({ reportName, year, month });
+  let s3Downloader = new S3Downloader(makeS3Client());
+  return s3Downloader.downloadFileAsync({ localPath, s3Bucket, s3Key });
+}
+
+function downloadDataFiles({ year, month, manifest }) {
+  let { s3Bucket, dataFilePaths } = manifest;
+  let s3Downloader = new S3Downloader(makeS3Client());
+
+  let downloadPromises = dataFilePaths.map(({ s3Key, localPath }) => {
+    return s3Downloader.downloadFileAsync({ localPath, s3Bucket, s3Key });
+  });
+
+  return Promise.all(downloadPromises);
+}
+
+function downloadFiles({ year, month }) {
+  const state = {
+    year,
+    month,
+    reportName: config.getValue("CUR_NAME"),
+    s3Bucket: config.getValue("CUR_S3_BUCKET"),
+    prefix: config.getValue("CUR_S3_PREFIX")
+  };
+
+  ensureDataFilesDir(state)
+    .then(() => {
+      return downloadManifest(state).then(({ localPath }) => {
+        return Object.assign({}, state, { manifestPath: localPath });
+      });
+    })
+    .then(state => {
+      let { manifestPath } = state;
+      let manifest = curManifest.readLocalManifest({
+        filePath: manifestPath
+      });
+      return Object.assign({}, state, { manifest });
+    })
+    .then(state => {
+      return downloadDataFiles(state).then(filePaths => {
+        let manifest = Object.assign({}, state.manifest, {
+          filePaths: filePaths.map(f => f.localPath)
+        });
+        return Object.assign({}, state, { manifest });
+      });
+    })
+    .then(state => {
+      console.log("Done downloading.", state);
+    })
+    .catch(err => {
+      console.log("Something failed. ", err);
+    });
+}
+
+module.exports = {
+  downloadFiles
+};
