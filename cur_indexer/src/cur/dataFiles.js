@@ -1,4 +1,5 @@
 var csvToJson = require("csvtojson"),
+  curDate = require("./date"),
   fs = require("fs"),
   hl = require("highland"),
   zlib = require("zlib");
@@ -35,4 +36,12 @@ function getDataStream(options) {
     });
 }
 
-module.exports = { getDataStream: getDataStream };
+// function getLocalPath({ year, month, fileName }) {
+//   let localFilePrefix = curDate.getLocalFilePrefix(year, month);
+//   let localPath = path.resolve(`./data_files/${localFilePrefix}/${fileName}`);
+//   return localPath;
+// }
+
+module.exports = {
+  getDataStream
+};

@@ -31,16 +31,13 @@ class S3Downloader {
       let localFile = createWriteStream(localPath);
       let fileStream = localFile.stream;
       fileStream.on("error", err => {
-        console.error("Error downloading file", err);
+        console.error(`Error downloading ${s3Key}`, err);
         localFile.delete();
-        reject({ errorMessage: "Error downloading file", error: err });
+        reject({ errorMessage: `Error downloading ${s3Key}`, error: err });
       });
       fileStream.on("finish", () => {
-        console.log(
-          `Successfully downloaded ${s3Key} to \
-          ${localPath} from bucket ${s3Bucket}`
-        );
-        resolve({ localPath: localPath });
+        console.log(`Successfully downloaded ${s3Key}`);
+        resolve({ localPath });
       });
 
       let inputStream = this.s3Client
@@ -56,6 +53,9 @@ class S3Downloader {
           });
         });
 
+      console.log(
+        `Downloading ${s3Key} to ${localPath} from bucket ${s3Bucket}`
+      );
       inputStream.pipe(fileStream);
     });
   }

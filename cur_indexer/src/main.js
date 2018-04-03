@@ -1,6 +1,6 @@
 var AWS = require("aws-sdk"),
   config = require("./config"),
-  curDataFiles = require("./cur/data_files"),
+  curDataFiles = require("./cur/dataFiles"),
   curDate = require("./cur/date"),
   curManifest = require("./cur/manifest"),
   csvToJson = require("csvtojson"),
@@ -107,20 +107,20 @@ function downloadManifest({ s3Bucket, prefix, reportName, year, month }) {
 
   let localPath = curManifest.getManifestLocalPath({ reportName, year, month });
 
-  console.log(new Date().toISOString() + ": starting download");
+  // console.log(new Date().toISOString() + ": starting download");
   let s3Downloader = new S3Downloader(makeS3Client());
   return s3Downloader.downloadFileAsync({ localPath, s3Bucket, s3Key });
 }
 
-function downloadDataFiles({ manifest }) {
-  let s3Bucket = manifest.bucket;
-  let reportKeys = manifest.reportKeys;
+function downloadDataFiles({ year, month, manifest }) {
+  let { s3Bucket, dataFilePaths } = manifest;
+  let s3Downloader = new S3Downloader(makeS3Client());
 
-  let downloadPromises = reportKeys.map(s3Key => {
-    let s3Downloader = new S3Downloader(makeS3Client());
-    let localPath = path.resolve("./data_files/");
+  let downloadPromises = dataFilePaths.map(({ s3Key, localPath }) => {
     return s3Downloader.downloadFileAsync({ localPath, s3Bucket, s3Key });
   });
+
+  return Promise.all(downloadPromises);
 }
 
 function doSomething() {
@@ -164,17 +164,44 @@ function ensureDataFilesDir({ year, month }) {
   });
 }
 
-ensureDataFilesDir({ year: 2018, month: 03 }).then(() => {
-  downloadManifest({
-    year: 2018,
-    month: 03,
-    reportName: "QT-ICE",
-    s3Bucket: "qt-awscostice",
-    prefix: "qt"
-  }).then(({ localPath }) => {
-    // console.log(`${new Date().toISOString()}: download finished: ${localPath}`);
+const state = {
+  year: 2018,
+  month: 3,
+  reportName: "QT-ICE",
+  s3Bucket: "qt-awscostice",
+  prefix: "qt"
+};
+
+ensureDataFilesDir(state)
+  .then(() => {
+    return downloadManifest(state).then(({ localPath }) => {
+      // console.log(localPath);
+      return Object.assign({}, state, { manifestPath: localPath });
+    });
+  })
+  .then(state => {
+    // console.log(state);
+    let { manifestPath } = state;
+    let manifest = curManifest.readManifestFromLocal({
+      filePath: manifestPath
+    });
+    console.log(manifest);
+    return Object.assign({}, state, { manifest });
+  })
+  .then(state => {
+    return downloadDataFiles(state).then(filePaths => {
+      let manifest = Object.assign({}, state.manifest, {
+        filePaths: filePaths.map(f => f.localPath)
+      });
+      return Object.assign({}, state, { manifest });
+    });
+  })
+  .then(state => {
+    console.log("Done downloading.", state);
+  })
+  .catch(err => {
+    console.log("Something failed. ", err);
   });
-});
 
 function repl() {
   let config = require("./src/config"),
