@@ -1,5 +1,7 @@
 var AWS = require("aws-sdk"),
+  curDate = require("./date"),
   fs = require("fs"),
+  path = require("path"),
   s3 = new AWS.S3({
     apiVersion: "2006-03-01",
     region: "us-east-1"
@@ -72,7 +74,11 @@ function getManifestFromS3(options) {
   return null;
 }
 
-function getManifest(options) {
+function manifestName(reportName) {
+  return `${reportName}-Manifest.json`;
+}
+
+function readManifestFromLocal(options) {
   var manifest = options.filePath
     ? getManifestFromLocalFile(options)
     : getManifestFromS3(options);
@@ -81,6 +87,21 @@ function getManifest(options) {
   return manifest;
 }
 
+function getManifestS3Key({ s3Bucket, prefix, reportName, year, month }) {
+  let period = curDate.getPeriodStr(year, month);
+  return `${prefix}/${reportName}/${period}/${manifestName(reportName)}`;
+}
+
+function getManifestLocalPath({ reportName, year, month }) {
+  let localFilePrefix = curDate.getLocalFilePrefix(year, month);
+  let localPath = path.resolve(
+    `./data_files/${localFilePrefix}/${manifestName(reportName)}`
+  );
+  return localPath;
+}
+
 module.exports = {
-  getManifest: getManifest
+  readManifestFromLocal,
+  getManifestS3Key,
+  getManifestLocalPath
 };

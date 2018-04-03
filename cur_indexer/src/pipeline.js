@@ -8,6 +8,9 @@ function start({ batchSize, concurrency, consumeBatchAsync }, dataStream) {
       batchNum++;
       return hl(consumeBatchAsync(items, { batchNum }));
     })
+    .errors(args => {
+      hl.log(args);
+    })
     .parallel(concurrency)
     .errors(args => {
       hl.log(args);

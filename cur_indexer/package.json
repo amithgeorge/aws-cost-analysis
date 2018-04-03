@@ -13,6 +13,7 @@
     "csvtojson": "^1.1.9",
     "elasticsearch": "^14.2.2",
     "highland": "^2.13.0",
+    "mkdirp": "^0.5.1",
     "ramda": "^0.25.0"
   }
 }
