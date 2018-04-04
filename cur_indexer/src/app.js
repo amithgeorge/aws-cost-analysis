@@ -110,6 +110,72 @@ function downloadFiles({ year, month }) {
     });
 }
 
+function getManifest({ reportName, year, month }) {
+  const manifestPath = curManifest.getManifestLocalPath({
+    reportName,
+    year,
+    month
+  });
+  return curManifest.readLocalManifest({
+    filePath: manifestPath
+  });
+}
+
+function makeESClient() {
+  let client = new elasticsearch.Client({
+    host: config.getValue("ES_URL"),
+    apiVersion: "6.2"
+  });
+
+  return client;
+}
+
+function createConsumer(consumeFn) {
+  return function(items, { batchNum }) {
+    console.log(new Date().toISOString() + ": consuming batch no: " + batchNum);
+    return consumeFn(items).then(() => {
+      console.log(
+        new Date().toISOString() + ": processed batch no: " + batchNum
+      );
+    });
+  };
+}
+
+function esIndexingBatchConsumer(indexer, { index }) {
+  return createConsumer(items => {
+    return indexer.bulkIndex({ index: index, data: items });
+  });
+}
+
+function makeIndexer() {
+  let client = makeESClient();
+  return esIndexer.makeIndexer(client);
+}
+
+function indexData({ year, month }) {
+  let reportName = config.getValue("CUR_NAME");
+  let manifest = getManifest({ reportName, year, month });
+  let index = `cur_${curDate.getLocalFilePrefix(year, month)}`;
+  let indexer = makeIndexer();
+  let batchSize = 3000;
+  let concurrency = 3;
+
+  indexer
+    .recreateIndex({ index: index, options: { numShards: 3, numReplicas: 0 } })
+    .then(() => {
+      let dataStream = curDataFiles.getDataStream({ manifest: manifest });
+      pipeline.start(
+        {
+          batchSize: batchSize,
+          concurrency: concurrency,
+          consumeBatchAsync: esIndexingBatchConsumer(indexer, { index })
+        },
+        dataStream
+      );
+    });
+}
+
 module.exports = {
-  downloadFiles
+  downloadFiles,
+  indexData
 };

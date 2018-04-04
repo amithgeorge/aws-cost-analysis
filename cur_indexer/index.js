@@ -27,6 +27,7 @@ switch (command) {
     break;
   case "index-data":
     console.log("indexing data: ", args.year, args.month);
+    app.indexData({ year: args.year, month: args.month });
     break;
   case "clean-up":
     console.log("removing data: ", args.year, args.month);

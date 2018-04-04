@@ -28,19 +28,15 @@ function parseCsvStream(headers, stream) {
   return hl(csvStream);
 }
 
-function getDataStream(options) {
-  return hl(options.manifest.files)
+function getDataStream({ manifest }) {
+  const { dataFilePaths, columns } = manifest;
+  const localPaths = dataFilePaths.map(f => f.localPath);
+  return hl(localPaths)
     .map(getUnzippedStream)
     .flatMap(function(stream) {
-      return parseCsvStream(options.manifest.columns, stream);
+      return parseCsvStream(columns, stream);
     });
 }
-
-// function getLocalPath({ year, month, fileName }) {
-//   let localFilePrefix = curDate.getLocalFilePrefix(year, month);
-//   let localPath = path.resolve(`./data_files/${localFilePrefix}/${fileName}`);
-//   return localPath;
-// }
 
 module.exports = {
   getDataStream

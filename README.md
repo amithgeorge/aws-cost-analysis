@@ -1,3 +1,14 @@
+## Usage
+
+```
+AWS_PROFILE=prod \
+ES_URL=http://localhost:32775 \
+CUR_NAME=some_report_name \
+CUR_S3_BUCKET=some_s3_bucket \
+CUR_S3_PREFIX=some_prefix_for_the_report \
+node index.js index-data --year 2018 --month 3
+```
+
 ## Logical areas
 
 ### Find latest manifest

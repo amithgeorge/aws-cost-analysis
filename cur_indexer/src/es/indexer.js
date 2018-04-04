@@ -19,7 +19,12 @@ function bulkIndex(client, { index, data }) {
 function recreateIndex(client, { index, options: { numShards, numReplicas } }) {
   return client.indices
     .delete({ index: index })
-    .catch(err => console.log(err))
+    .catch(err => {
+      if (err.status === 404) {
+        return;
+      }
+      console.log(err);
+    })
     .then(() => {
       return client.indices.create({
         index: index,

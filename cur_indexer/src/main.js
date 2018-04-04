@@ -83,46 +83,6 @@ function esIndexingBatchConsumer(indexer, { index }) {
   });
 }
 
-function getManifest(manifestPath) {
-  let manifest = curManifest.getManifest({
-    filePath: manifestPath
-  });
-  manifest.files = [
-    path.resolve("./data_files/QT-ICE-1.csv.gz"),
-    path.resolve("./data_files/QT-ICE-2.csv.gz")
-  ];
-  return manifest;
-}
-
-function downloadManifest({ s3Bucket, prefix, reportName, year, month }) {
-  // sample manifestPath "s3://qt-awscostice/qt/QT-ICE/20180301-20180401/QT-ICE-Manifest.json"
-
-  let s3Key = curManifest.getManifestS3Key({
-    s3Bucket,
-    prefix,
-    reportName,
-    year,
-    month
-  });
-
-  let localPath = curManifest.getManifestLocalPath({ reportName, year, month });
-
-  // console.log(new Date().toISOString() + ": starting download");
-  let s3Downloader = new S3Downloader(makeS3Client());
-  return s3Downloader.downloadFileAsync({ localPath, s3Bucket, s3Key });
-}
-
-function downloadDataFiles({ year, month, manifest }) {
-  let { s3Bucket, dataFilePaths } = manifest;
-  let s3Downloader = new S3Downloader(makeS3Client());
-
-  let downloadPromises = dataFilePaths.map(({ s3Key, localPath }) => {
-    return s3Downloader.downloadFileAsync({ localPath, s3Bucket, s3Key });
-  });
-
-  return Promise.all(downloadPromises);
-}
-
 function doSomething() {
   let manifest = getManifest();
   let index = "cur_201802";
@@ -147,23 +107,6 @@ function doSomething() {
 
 //doSomething();
 
-function ensureDataFilesDir({ year, month }) {
-  let localPrefix = curDate.getLocalFilePrefix(year, month);
-  return new Promise((resolve, reject) => {
-    let localPath = path.resolve(`./data_files/${localPrefix}`);
-    mkdirp(localPath, err => {
-      if (err) {
-        let errorMessage = `Failed to create ${localPath}`;
-        console.error(errorMessage);
-        reject({ errorMessage, error: err });
-        return;
-      }
-
-      resolve(null, localPath);
-    });
-  });
-}
-
 const state = {
   year: 2018,
   month: 3,
@@ -171,37 +114,6 @@ const state = {
   s3Bucket: "qt-awscostice",
   prefix: "qt"
 };
-
-ensureDataFilesDir(state)
-  .then(() => {
-    return downloadManifest(state).then(({ localPath }) => {
-      // console.log(localPath);
-      return Object.assign({}, state, { manifestPath: localPath });
-    });
-  })
-  .then(state => {
-    // console.log(state);
-    let { manifestPath } = state;
-    let manifest = curManifest.readManifestFromLocal({
-      filePath: manifestPath
-    });
-    console.log(manifest);
-    return Object.assign({}, state, { manifest });
-  })
-  .then(state => {
-    return downloadDataFiles(state).then(filePaths => {
-      let manifest = Object.assign({}, state.manifest, {
-        filePaths: filePaths.map(f => f.localPath)
-      });
-      return Object.assign({}, state, { manifest });
-    });
-  })
-  .then(state => {
-    console.log("Done downloading.", state);
-  })
-  .catch(err => {
-    console.log("Something failed. ", err);
-  });
 
 function repl() {
   let config = require("./src/config"),
