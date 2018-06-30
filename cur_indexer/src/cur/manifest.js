@@ -84,7 +84,7 @@ function readLocalManifest({ filePath }) {
 
 function getManifestS3Key({ s3Bucket, prefix, reportName, year, month }) {
   let period = curDate.getPeriodStr(year, month);
-  return `${prefix}/${reportName}/${period}/${manifestName(reportName)}`;
+  return `${prefix}${reportName}/${period}/${manifestName(reportName)}`;
 }
 
 function getManifestLocalPath({ reportName, year, month }) {

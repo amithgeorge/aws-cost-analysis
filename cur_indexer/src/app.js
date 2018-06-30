@@ -157,7 +157,7 @@ function indexData({ year, month }) {
   let manifest = getManifest({ reportName, year, month });
   let index = `cur_${curDate.getLocalFilePrefix(year, month)}`;
   let indexer = makeIndexer();
-  let batchSize = 3000;
+  let batchSize = 50;
   let concurrency = 3;
 
   indexer
